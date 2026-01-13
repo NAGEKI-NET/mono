@@ -45,7 +45,7 @@ mono_threads_suspend_policy_is_blocking_transition_enabled (MonoThreadsSuspendPo
 	case MONO_THREADS_SUSPEND_FULL_PREEMPTIVE:
 		return FALSE;
 	default:
-		g_assert_not_reached ();
+		return FALSE;
 	}
 }
 
@@ -57,7 +57,7 @@ mono_threads_suspend_policy_are_safepoints_enabled (MonoThreadsSuspendPolicy p)
 	case MONO_THREADS_SUSPEND_HYBRID:
 		return TRUE;
 	default:
-		return FALSE;
+		g_assert_not_reached ();
 	}
 }
 

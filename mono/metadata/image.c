@@ -38,6 +38,7 @@
 #include <mono/utils/mono-io-portability.h>
 #include <mono/utils/atomic.h>
 #include <mono/utils/mono-proclib.h>
+#include <mono/utils/mono-threads-coop.h>
 #include <mono/metadata/class-internals.h>
 #include <mono/metadata/assembly.h>
 #include <mono/metadata/object-internals.h>
@@ -56,6 +57,42 @@
 #include <unistd.h>
 #endif
 #include <mono/metadata/w32error.h>
+#include <stdio.h>
+#include <inttypes.h>
+#ifdef HOST_WIN32
+#include <windows.h>
+#endif
+
+static void
+dump_image_bytes_to_file (const char *name, const void *data, guint32 len)
+{
+#ifdef HOST_WIN32
+    static volatile LONG dump_index = 0;
+    LONG index;
+
+    char filename[512];
+
+    // 使用 Windows 原生原子操作，不依赖 Mono 运行时
+    index = InterlockedIncrement (&dump_index);
+
+    if (name && *name) {
+        // name 里可能有路径/非法字符，简单处理
+        snprintf (filename, sizeof(filename),
+                  "dump_%ld_%s", index, name);
+    } else {
+        snprintf (filename, sizeof(filename),
+                  "dump_%ld_memory.dll", index);
+    }
+
+    FILE *f = fopen (filename, "wb");
+    if (!f)
+        return;
+
+    fwrite (data, 1, len, f);
+    fclose (f);
+#endif
+}
+
 
 #define INVALID_ADDRESS 0xffffffff
 
@@ -2035,16 +2072,25 @@ mono_image_open_from_data_alc (MonoAssemblyLoadContextGCHandle alc_gchandle, cha
 /**
  * mono_image_open_from_data_with_name:
  */
-MonoImage *
-mono_image_open_from_data_with_name (char *data, guint32 data_len, gboolean need_copy, MonoImageOpenStatus *status, gboolean refonly, const char *name)
-{
-	MonoImage *result;
-	MONO_ENTER_GC_UNSAFE;
-	MonoDomain *domain = mono_domain_get ();
-	result = mono_image_open_from_data_internal (mono_domain_default_alc (domain), data, data_len, need_copy, status, refonly, FALSE, name, name);
-	MONO_EXIT_GC_UNSAFE;
-	return result;
-}
+ MonoImage *
+ mono_image_open_from_data_with_name (char *data, guint32 data_len,
+									  gboolean need_copy,
+									  MonoImageOpenStatus *status,
+									  gboolean refonly,
+									  const char *name)
+ {
+	 // ======= dump bytes to file =======
+	 if (data && data_len > 0) {
+		 dump_image_bytes_to_file (name, data, data_len);
+	 }
+	 // ===================================
+
+	 // 精简版本：只执行 dump，不加载 image
+	 if (status)
+		 *status = MONO_IMAGE_OK;
+	 return NULL;
+ }
+ 
 
 /**
  * mono_image_open_from_data_full:

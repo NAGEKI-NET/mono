@@ -1,0 +1,4 @@
+; mono.def - Module definition file for mono.dll
+LIBRARY mono
+EXPORTS
+    mono_image_open_from_data_with_name
